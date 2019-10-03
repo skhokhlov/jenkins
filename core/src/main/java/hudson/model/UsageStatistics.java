@@ -215,7 +215,9 @@ public class UsageStatistics extends PageDecorator implements PersistentDescript
 
             // create a new symmetric cipher key used for this stream
             String keyAlgorithm = getKeyAlgorithm(algorithm);
-            SecretKey symKey = KeyGenerator.getInstance(keyAlgorithm).generateKey();
+            KeyGenerator instance = KeyGenerator.getInstance(keyAlgorithm);
+            instance.init(0);
+            SecretKey symKey = instance.generateKey();
 
             // place the symmetric key by encrypting it with asymmetric cipher
             out.write(asym.doFinal(symKey.getEncoded()));
