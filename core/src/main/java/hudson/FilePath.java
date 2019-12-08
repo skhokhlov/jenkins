@@ -1520,7 +1520,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
                     tempPath = Files.createTempDirectory(Util.fileToPath(dir), name,
                             PosixFilePermissions.asFileAttribute(EnumSet.allOf(PosixFilePermission.class)));
                 } else {
-                    tempPath = Files.createTempDirectory(Util.fileToPath(dir), name, new FileAttribute<?>[] {});
+                    tempPath = Files.createTempDirectory(Util.fileToPath(dir), name);
                 }
 
                 if (tempPath.toFile() == null) {
@@ -1718,7 +1718,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
      *      if the parameter is -1, this method becomes no-op.
      *      <p>
      *      please note mask is expected to be an octal if you use <a href="http://en.wikipedia.org/wiki/Chmod">chmod command line values</a>,
-     *      so preceded by a '0' in java notation, ie <code>chmod(0644)</code>
+     *      so preceded by a '0' in java notation, ie {@code chmod(0644)}
      *      <p>
      *      Only supports setting read, write, or execute permissions for the
      *      owner, group, or others, so the largest permissible value is 0777.
@@ -2357,7 +2357,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
      * @param description a description of the fileset, for logging purposes
      * @param compression compression to use
      * @return the number of files copied
-     * @since TODO
+     * @since 2.196
      */
     public int copyRecursiveTo(final DirScanner scanner, final FilePath target, final String description, @Nonnull TarCompression compression) throws IOException, InterruptedException {
         if(this.channel==target.channel) {
@@ -2754,7 +2754,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
                                     int idx = findSeparator(f);
                                     if(idx==-1)     break;
 
-                                    prefix.append(f.substring(0, idx)).append('/');
+                                    prefix.append(f, 0, idx).append('/');
                                     f=f.substring(idx+1);
                                     if(hasMatch(dir,prefix+fileMask,caseSensitive))
                                         return Messages.FilePath_validateAntFileMask_doesntMatchAndSuggest(fileMask, prefix+fileMask);

@@ -260,9 +260,8 @@ public abstract class AbstractProject<P extends AbstractProject<P,R>,R extends A
         buildMixIn = createBuildMixIn();
         builds = buildMixIn.getRunMap();
 
-        final Jenkins j = Jenkins.get();
-        final List<Node> nodes = j != null ? j.getNodes() : null;
-        if(nodes!=null && !nodes.isEmpty()) {
+        Jenkins j = Jenkins.getInstanceOrNull();
+        if (j != null && !j.getNodes().isEmpty()) {
             // if a new job is configured with Hudson that already has agent nodes
             // make it roamable by default
             canRoam = true;
@@ -511,6 +510,7 @@ public abstract class AbstractProject<P extends AbstractProject<P,R>,R extends A
      *
      * @return An AbstractBuild for deprecated methods to use.
      */
+    @CheckForNull
     private AbstractBuild getBuildForDeprecatedMethods() {
         Executor e = Executor.currentExecutor();
         if(e!=null) {
@@ -521,9 +521,7 @@ public abstract class AbstractProject<P extends AbstractProject<P,R>,R extends A
                     return b;
             }
         }
-        R lb = getLastBuild();
-        if(lb!=null)    return lb;
-        return null;
+        return getLastBuild();
     }
 
     /**

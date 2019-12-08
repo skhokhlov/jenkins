@@ -27,6 +27,7 @@ package hudson;
 
 import hudson.model.Slave;
 import hudson.security.*;
+import jenkins.telemetry.impl.AutoRefresh;
 import jenkins.util.SystemProperties;
 import hudson.cli.CLICommand;
 import hudson.console.ConsoleAnnotationDescriptor;
@@ -52,6 +53,7 @@ import hudson.model.PaneStatusProperties;
 import hudson.model.ParameterDefinition;
 import hudson.model.ParameterDefinition.ParameterDescriptor;
 import hudson.model.Run;
+import hudson.model.TimeZoneProperty;
 import hudson.model.TopLevelItem;
 import hudson.model.User;
 import hudson.model.View;
@@ -99,6 +101,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +118,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
@@ -176,6 +181,7 @@ import org.kohsuke.accmod.restrictions.DoNotUse;
 @SuppressWarnings("rawtypes")
 public class Functions {
     private static final AtomicLong iota = new AtomicLong();
+    private static Logger LOGGER = Logger.getLogger(Functions.class.getName());
 
     public Functions() {
     }
@@ -378,6 +384,11 @@ public class Functions {
         if(res!=null)
             return Area.parse(res.getValue());
         return null;
+    }
+
+    @Restricted(NoExternalUse.class)
+    public static boolean useHidingPasswordFields() {
+        return SystemProperties.getBoolean(Functions.class.getName() + ".hidingPasswordFields", true);
     }
 
     /**
@@ -639,10 +650,17 @@ public class Functions {
             // to avoid conflicts with any other web apps that might be on the same machine.
             c.setPath("/");
             c.setMaxAge(60*60*24*30); // persist it roughly for a month
+            c.setHttpOnly(true);
             response.addCookie(c);
         }
         if (refresh) {
             response.addHeader("Refresh", SystemProperties.getString("hudson.Functions.autoRefreshSeconds", "10"));
+        }
+
+        try {
+            ExtensionList.lookupSingleton(AutoRefresh.class).recordRequest(request, refresh);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to record auto refresh status in telemetry", e);
         }
     }
 
@@ -666,7 +684,28 @@ public class Functions {
     public static boolean isCollapsed(String paneId) {
     	return PaneStatusProperties.forCurrentUser().isCollapsed(paneId);
     }
-    
+
+    @Restricted(NoExternalUse.class)
+    public static boolean isUserTimeZoneOverride() {
+        return TimeZoneProperty.forCurrentUser() != null;
+    }
+
+    @CheckForNull
+    @Restricted(NoExternalUse.class)
+    public static String getUserTimeZone() {
+        return TimeZoneProperty.forCurrentUser();
+    }
+
+    @Restricted(NoExternalUse.class)
+    public static String getUserTimeZonePostfix() {
+        if (!isUserTimeZoneOverride()) {
+            return "";
+        }
+
+        TimeZone tz = TimeZone.getTimeZone(getUserTimeZone());
+        return tz.getDisplayName(tz.observesDaylightTime(), TimeZone.SHORT);
+    }
+
     /**
      * Finds the given object in the ancestor list and returns its URL.
      * This is used to determine the "current" URL assigned to the given object,
@@ -724,6 +763,20 @@ public class Functions {
 
     public static String encode(String s) {
         return Util.encode(s);
+    }
+
+    /**
+     * Shortcut function for calling {@link URLEncoder#encode(String,String)} (with UTF-8 encoding).<br>
+     * Useful for encoding URL query parameters in jelly code (as in {@code "...?param=${h.urlEncode(something)}"}).
+     *
+     * @since 2.200
+     */
+    public static String urlEncode(String s) {
+        try {
+            return URLEncoder.encode(s, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            throw new Error(e); // impossible
+        }
     }
 
     public static String escape(String s) {
@@ -1427,12 +1480,10 @@ public class Functions {
         if(it instanceof Descriptor)
             clazz = ((Descriptor)it).clazz;
 
-        StringBuilder buf = new StringBuilder(Stapler.getCurrentRequest().getContextPath());
-        buf.append(Jenkins.VIEW_RESOURCE_PATH).append('/');
-        buf.append(clazz.getName().replace('.','/').replace('$','/'));
-        buf.append('/').append(path);
-
-        return buf.toString();
+        String buf = Stapler.getCurrentRequest().getContextPath() + Jenkins.VIEW_RESOURCE_PATH + '/' +
+                clazz.getName().replace('.', '/').replace('$', '/') +
+                '/' + path;
+        return buf;
     }
 
     public static boolean hasView(Object it, String path) throws IOException {
